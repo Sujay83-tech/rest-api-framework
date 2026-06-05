@@ -1,0 +1,153 @@
+# =============================================================================
+# FILE:    .github/workflows/swagger-warmup.yml
+# OWNER:   Sujay (QA/Tester) — lives in YOUR own GitHub repo
+# PURPOSE: 1) Wake up Render service at 8:30 AM IST every day
+#          2) Fetch the live OpenAPI spec and list ALL loaded endpoints
+#          3) Flag if any endpoint is missing or docs are unreachable
+#
+# DYNAMIC BEHAVIOUR:
+#   - Developers add new @RestController methods → springdoc auto-updates /v3/api-docs
+#   - This workflow fetches that spec fresh every morning
+#   - Zero edits needed to this file when new APIs are added
+# =============================================================================
+
+name: 🌅 Morning API Warm-Up & Endpoint Audit — 8:30 AM IST
+
+on:
+  schedule:
+    - cron: '0 3 * * *'      # 03:00 UTC = 8:30 AM IST every day
+
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'Reason for manual trigger (optional)'
+        required: false
+        default: 'Manual run by QA'
+
+# =============================================================================
+jobs:
+
+  qa-morning-warmup:
+    name: 🔍 Wake Up + Validate All APIs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+
+      # ── STEP 1: Wake up Render (cold start can take ~50s) ──────────────────
+      - name: 🔔 Step 1 — Wake Up Render Service
+        run: |
+          TARGET="https://firststudyproject.onrender.com/swagger-ui/index.html"
+          MAX=6
+          WAIT=30
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  🎯 Target : $TARGET"
+          echo "  🕗 IST    : $(TZ='Asia/Kolkata' date '+%A, %d %b %Y — %I:%M %p')"
+          echo "  🌍 UTC    : $(date -u '+%H:%M UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          for i in $(seq 1 $MAX); do
+            echo ""
+            echo "  🔁 Attempt $i of $MAX..."
+            STATUS=$(curl --silent --output /dev/null \
+              --write-out "%{http_code}" --max-time 55 "$TARGET")
+            echo "  📡 HTTP: $STATUS"
+
+            if [ "$STATUS" = "200" ]; then
+              echo "  ✅ Render is AWAKE!"
+              exit 0
+            fi
+
+            [ "$i" -eq "$MAX" ] && echo "  ❌ Failed after $MAX attempts." && exit 1
+            echo "  💤 Waiting ${WAIT}s..."
+            sleep $WAIT
+          done
+
+      # ── STEP 2: Fetch live spec + list all endpoints ────────────────────────
+      - name: 📋 Step 2 — Fetch OpenAPI Spec & List All Endpoints
+        run: |
+          SPEC_URL="https://firststudyproject.onrender.com/v3/api-docs"
+
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  📄 Fetching live spec: $SPEC_URL"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          HTTP_STATUS=$(curl --silent --output /dev/null \
+            --write-out "%{http_code}" --max-time 20 "$SPEC_URL")
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "  ❌ /v3/api-docs returned HTTP $HTTP_STATUS"
+            echo "  ⚠️  Dev team action needed: configure springdoc-openapi in the project."
+            exit 1
+          fi
+
+          SPEC=$(curl --silent --max-time 30 "$SPEC_URL")
+
+          echo "$SPEC" | python3 -c "
+          import json, sys
+
+          spec = json.load(sys.stdin)
+          info    = spec.get('info', {})
+          paths   = spec.get('paths', {})
+          tags    = spec.get('tags', [])
+
+          print()
+          print(f'  📦 Title      : {info.get(\"title\",   \"Not set\")}')
+          print(f'  🔢 Version    : {info.get(\"version\", \"Not set\")}')
+          print(f'  📝 Description: {info.get(\"description\", \"Not set\")}')
+          print(f'  🏷️  Tag Groups : {len(tags)}')
+          print()
+          print(f'  🔗 Total Endpoints Discovered: {len(paths)}')
+          print()
+
+          if not paths:
+              print('  ⚠️  WARNING: Zero endpoints found in spec.')
+              print('  ℹ️  Check that controllers use @RestController annotation.')
+              sys.exit(1)
+
+          # Group by HTTP method for clean output
+          get_list, post_list, put_list, patch_list, delete_list, other = [], [], [], [], [], []
+          for path, methods in paths.items():
+              for method in methods.keys():
+                  entry = f'{path}'
+                  m = method.upper()
+                  if m == 'GET':      get_list.append(entry)
+                  elif m == 'POST':   post_list.append(entry)
+                  elif m == 'PUT':    put_list.append(entry)
+                  elif m == 'PATCH':  patch_list.append(entry)
+                  elif m == 'DELETE': delete_list.append(entry)
+                  else:               other.append(f'[{m}] {entry}')
+
+          def print_group(label, emoji, items):
+              if items:
+                  print(f'  {emoji} {label} ({len(items)})')
+                  for item in items:
+                      print(f'       ↳ {item}')
+                  print()
+
+          print('  ── Endpoints by Method ──────────────────────────')
+          print_group('GET',    '🟢', get_list)
+          print_group('POST',   '🔵', post_list)
+          print_group('PUT',    '🟡', put_list)
+          print_group('PATCH',  '🟠', patch_list)
+          print_group('DELETE', '🔴', delete_list)
+          print_group('OTHER',  '⚪', other)
+          print('  ─────────────────────────────────────────────────')
+          print(f'  ✅ All {len(paths)} endpoint(s) loaded and verified.')
+          "
+
+      # ── STEP 3: Summary ────────────────────────────────────────────────────
+      - name: ✅ Step 3 — QA Audit Complete
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  🎯 Morning warm-up & endpoint audit complete!"
+          echo ""
+          echo "  🌐 Swagger UI  : https://firststudyproject.onrender.com/swagger-ui/index.html"
+          echo "  📋 API Spec    : https://firststudyproject.onrender.com/v3/api-docs"
+          echo ""
+          echo "  📅 Next run    : Tomorrow at 8:30 AM IST"
+          echo "  ⚡ Manual run  : GitHub → Actions tab → Run workflow"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

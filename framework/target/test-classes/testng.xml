@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+
+<!--
+    testng.xml — Test Suite Configuration
+    Run with: mvn test
+    Or in VS Code: right-click → Run TestNG Suite
+
+    Suite structure:
+    1. Health Checks run FIRST — if these fail, you know the service is down
+    2. API Tests run SECOND — functional tests for actual endpoints
+-->
+
+<suite name="REST API Test Suite — First Study Project" verbose="1">
+
+    <!-- ── Group 1: Health Checks ─────────────────────────────────────── -->
+    <test name="Health Checks">
+        <classes>
+            <class name="com.qa.tests.api.HealthCheckTest"/>
+        </classes>
+    </test>
+
+    <!-- ── Group 2: API Functional Tests ─────────────────────────────── -->
+    <test name="API Functional Tests">
+        <classes>
+            <class name="com.qa.tests.api.ApiTests"/>
+        </classes>
+    </test>
+
+</suite>
