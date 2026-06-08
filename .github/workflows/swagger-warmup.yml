@@ -21,6 +21,11 @@ jobs:
     steps:
 
       - name: 🔔 Step 1 — Wake Up Render Service
+        # Secrets are passed as environment variables into the bash script
+        # They are NEVER visible in logs — GitHub masks them automatically
+        env:
+          SWAGGER_USER: ${{ secrets.SWAGGER_USERNAME }}
+          SWAGGER_PASS: ${{ secrets.SWAGGER_PASSWORD }}
         run: |
           TARGET="https://firststudyproject.onrender.com/swagger-ui/index.html"
           MAX=6
@@ -28,6 +33,7 @@ jobs:
 
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  🎯 Target : $TARGET"
+          echo "  🔐 Auth   : credentials loaded from GitHub Secrets"
           echo "  🕗 IST    : $(TZ='Asia/Kolkata' date '+%A, %d %b %Y — %I:%M %p')"
           echo "  🌍 UTC    : $(date -u '+%H:%M UTC')"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -36,14 +42,12 @@ jobs:
             echo ""
             echo "  🔁 Attempt $i of $MAX..."
 
-            # ✅ FIX: '|| echo "000"' means if curl times out (exit 28),
-            # assign "000" to STATUS instead of crashing the whole script.
-            # This lets the retry loop continue normally.
             STATUS=$(curl --silent \
               --output /dev/null \
               --write-out "%{http_code}" \
               --max-time 70 \
               --connect-timeout 10 \
+              -u "$SWAGGER_USER:$SWAGGER_PASS" \
               "$TARGET" || echo "000")
 
             echo "  📡 HTTP: $STATUS"
@@ -59,6 +63,9 @@ jobs:
           done
 
       - name: 📋 Step 2 — Fetch OpenAPI Spec & List All Endpoints
+        env:
+          SWAGGER_USER: ${{ secrets.SWAGGER_USERNAME }}
+          SWAGGER_PASS: ${{ secrets.SWAGGER_PASSWORD }}
         run: |
           SPEC_URL="https://firststudyproject.onrender.com/v3/api-docs"
 
@@ -67,22 +74,23 @@ jobs:
           echo "  📄 Fetching live spec: $SPEC_URL"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          # ✅ FIX: same pattern — timeout returns "000" not a crash
           HTTP_STATUS=$(curl --silent \
             --output /dev/null \
             --write-out "%{http_code}" \
             --max-time 30 \
             --connect-timeout 10 \
+            -u "$SWAGGER_USER:$SWAGGER_PASS" \
             "$SPEC_URL" || echo "000")
 
           if [ "$HTTP_STATUS" != "200" ]; then
             echo "  ❌ /v3/api-docs returned HTTP $HTTP_STATUS"
-            echo "  ⚠️  Dev team action needed: configure springdoc-openapi."
+            echo "  ⚠️  Check credentials or ask dev team to verify springdoc config."
             exit 1
           fi
 
-          # ✅ FIX: empty string fallback if spec fetch fails
-          SPEC=$(curl --silent --max-time 30 "$SPEC_URL" || echo "")
+          SPEC=$(curl --silent --max-time 30 \
+            -u "$SWAGGER_USER:$SWAGGER_PASS" \
+            "$SPEC_URL" || echo "")
 
           echo "$SPEC" | python3 -c "
           import json, sys
