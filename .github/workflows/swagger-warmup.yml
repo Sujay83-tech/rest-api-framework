@@ -147,4 +147,8 @@ jobs:
           echo "  🌐 Swagger UI : https://firststudyproject.onrender.com/swagger-ui/index.html"
           echo "  📋 API Spec   : https://firststudyproject.onrender.com/v3/api-docs"
           echo "  📅 Next run   : Tomorrow at 8:30 AM IST"
+<<<<<<< HEAD
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+=======
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+>>>>>>> 54c6b1d40bacb2aef330949a3e3b89ba872560f0
