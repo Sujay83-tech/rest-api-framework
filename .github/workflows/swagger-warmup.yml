@@ -1,8 +1,8 @@
-name: 🌅 Morning API Warm-Up & Endpoint Audit — 8:30 AM IST
+name: 🌅 Morning API Warm-Up & Endpoint Audit — Every 15 Min
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '*/15 * * * *'   # Runs every 15 minutes → 96 times per day
 
   workflow_dispatch:
     inputs:
@@ -146,9 +146,5 @@ jobs:
           echo "  🎯 Warm-up & audit complete!"
           echo "  🌐 Swagger UI : https://firststudyproject.onrender.com/swagger-ui/index.html"
           echo "  📋 API Spec   : https://firststudyproject.onrender.com/v3/api-docs"
-          echo "  📅 Next run   : Tomorrow at 8:30 AM IST"
-<<<<<<< HEAD
+          echo "  📅 Next run   : In 15 minutes (runs 96x per day)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-=======
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
->>>>>>> 54c6b1d40bacb2aef330949a3e3b89ba872560f0
